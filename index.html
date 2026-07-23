@@ -1,0 +1,351 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0f1222" />
+    <title>Hours &amp; Work Dashboard</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>⏱️</text></svg>" />
+
+    <!-- Hide the page until auth resolves (prevents a flash of gated content). -->
+    <script>
+      document.documentElement.style.visibility = "hidden";
+    </script>
+
+    <!-- SOMA Auth (order matters: Supabase CDN, then config, then runtime). -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+    <script src="js/soma-auth-config.js"></script>
+    <script src="js/soma-auth.js"></script>
+
+    <!-- SOMA feedback chip (SOMA App Standard §8) -->
+    <link rel="stylesheet" href="/vendor/soma-feedback/soma-feedback.css" />
+
+    <style>
+      :root {
+        --bg: #0f1222;
+        --bg-2: #171a30;
+        --panel: #1c2038;
+        --panel-2: #232848;
+        --border: #2c3157;
+        --text: #e8eaf6;
+        --muted: #9aa0c8;
+        --accent: #7c83ff;
+        --accent-2: #4dd6a8;
+        --danger: #ff6b7a;
+        --shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
+      }
+      * { box-sizing: border-box; }
+      html, body { margin: 0; padding: 0; }
+      body {
+        background: radial-gradient(1200px 600px at 80% -10%, #1a1f3d 0%, var(--bg) 55%);
+        color: var(--text);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          Helvetica, Arial, sans-serif;
+        min-height: 100vh;
+        line-height: 1.5;
+      }
+      .wrap { max-width: 1040px; margin: 0 auto; padding: 32px 20px 80px; }
+
+      header.app { margin-bottom: 26px; }
+      header.app .eyebrow {
+        color: var(--accent);
+        font-size: 12px;
+        letter-spacing: 0.14em;
+        text-transform: uppercase;
+        font-weight: 700;
+      }
+      header.app h1 { margin: 6px 0 4px; font-size: 26px; font-weight: 700; }
+      header.app p.sub { margin: 0; color: var(--muted); font-size: 14px; }
+      header.app .topline { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+
+      /* Signed-in identity bar */
+      .userbar { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+      .userbar .who { color: var(--muted); font-size: 12px; text-align: right; line-height: 1.3; }
+      .userbar .who strong { color: var(--text); font-weight: 600; }
+
+      /* Not-authorized gate panel */
+      .gate {
+        display: none;
+        min-height: 60vh;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        gap: 14px;
+        padding: 40px 20px;
+      }
+      .gate h2 { margin: 0; font-size: 20px; }
+      .gate p { margin: 0; color: var(--muted); max-width: 460px; }
+      .gate .email { color: var(--text); font-weight: 600; }
+
+      /* Summary cards */
+      .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 22px 0 28px; }
+      .card {
+        background: linear-gradient(180deg, var(--panel) 0%, var(--bg-2) 100%);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 18px 20px;
+        box-shadow: var(--shadow);
+      }
+      .card .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.08em; }
+      .card .value { font-size: 30px; font-weight: 700; margin-top: 6px; }
+      .card.owed .value { color: var(--accent-2); }
+      .card .foot { color: var(--muted); font-size: 12px; margin-top: 4px; }
+
+      /* Panels */
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 20px;
+        box-shadow: var(--shadow);
+        margin-bottom: 22px;
+      }
+      .panel h2 { margin: 0 0 16px; font-size: 15px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+
+      /* Form + filter rows */
+      .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+      .field { display: flex; flex-direction: column; gap: 6px; }
+      .field label { font-size: 12px; color: var(--muted); }
+      .field.grow { flex: 1 1 240px; }
+      input, textarea {
+        background: var(--bg-2);
+        border: 1px solid var(--border);
+        color: var(--text);
+        border-radius: 10px;
+        padding: 10px 12px;
+        font-size: 14px;
+        font-family: inherit;
+        width: 100%;
+      }
+      input:focus, textarea:focus { outline: 2px solid var(--accent); border-color: transparent; }
+      input[type="date"] { color-scheme: dark; }
+      input.w-date { width: 160px; }
+      input.w-hours { width: 110px; }
+
+      button {
+        font-family: inherit;
+        font-size: 14px;
+        font-weight: 600;
+        border-radius: 10px;
+        padding: 10px 16px;
+        border: 1px solid transparent;
+        cursor: pointer;
+        transition: filter 0.12s ease, background 0.12s ease;
+      }
+      button.primary { background: var(--accent); color: #fff; }
+      button.primary:hover { filter: brightness(1.1); }
+      button.ghost { background: transparent; color: var(--muted); border-color: var(--border); }
+      button.ghost:hover { color: var(--text); border-color: var(--accent); }
+      button.link { background: none; border: none; padding: 4px 8px; color: var(--muted); }
+      button.link:hover { color: var(--text); }
+      button.link.danger:hover { color: var(--danger); }
+
+      .filter-actions { margin-left: auto; display: flex; gap: 8px; }
+
+      /* Table */
+      .table-wrap { overflow-x: auto; }
+      table { width: 100%; border-collapse: collapse; font-size: 14px; }
+      th, td { text-align: left; padding: 12px 10px; border-bottom: 1px solid var(--border); }
+      th { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
+      td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+      tbody tr:hover { background: var(--panel-2); }
+      td .desc { color: var(--text); }
+      .empty { text-align: center; color: var(--muted); padding: 34px 10px; }
+      tfoot td { font-weight: 700; border-top: 2px solid var(--border); border-bottom: none; }
+
+      .badge { display: inline-block; font-size: 11px; color: var(--muted); }
+      .hint { color: var(--muted); font-size: 12px; margin-top: 10px; }
+      .actions-cell { white-space: nowrap; text-align: right; }
+
+      @media (max-width: 720px) {
+        .cards { grid-template-columns: 1fr; }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header class="app">
+        <div class="topline">
+          <div>
+            <div class="eyebrow" id="eyebrow">SOMA · Playmaker</div>
+            <h1 id="title">Hours &amp; Work Dashboard</h1>
+            <p class="sub" id="subtitle"></p>
+          </div>
+          <div class="userbar" id="userbar" style="display:none">
+            <div class="who">Signed in as<br /><strong id="user-email"></strong></div>
+            <button class="ghost" id="signout-btn">Sign out</button>
+          </div>
+        </div>
+      </header>
+
+      <!-- Shown to a signed-in user who is NOT on the access allowlist. -->
+      <div class="gate" id="not-authorized">
+        <h2>Not authorized</h2>
+        <p>
+          You're signed in as <span class="email" id="gate-email"></span>, but this
+          ledger is restricted. Ask Mike to add your email to the access list.
+        </p>
+        <button class="ghost" id="gate-signout-btn">Sign out</button>
+      </div>
+
+      <div id="main-content" style="display:none">
+      <section class="cards">
+        <div class="card">
+          <div class="label">Entries</div>
+          <div class="value" id="stat-count">0</div>
+          <div class="foot" id="stat-count-foot">in current view</div>
+        </div>
+        <div class="card">
+          <div class="label">Total hours</div>
+          <div class="value" id="stat-hours">0.00</div>
+          <div class="foot" id="stat-hours-foot">in current view</div>
+        </div>
+        <div class="card owed">
+          <div class="label">Total owed</div>
+          <div class="value" id="stat-owed">$0.00</div>
+          <div class="foot" id="stat-rate-foot">@ $120/hr</div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Log an entry</h2>
+        <form id="entry-form">
+          <div class="row">
+            <div class="field">
+              <label for="f-date">Date</label>
+              <input class="w-date" type="date" id="f-date" required />
+            </div>
+            <div class="field">
+              <label for="f-hours">Hours</label>
+              <input class="w-hours" type="number" id="f-hours" min="0" max="24" step="0.25" placeholder="2.5" required />
+            </div>
+            <div class="field grow">
+              <label for="f-desc">Task / description</label>
+              <input type="text" id="f-desc" placeholder="e.g. Playmaker onboarding — script import review" required />
+            </div>
+            <div class="field">
+              <label>&nbsp;</label>
+              <button type="submit" class="primary" id="submit-btn">Add entry</button>
+            </div>
+          </div>
+          <div class="hint">Hours accept quarter-hour steps (0.25). Nothing here moves money — it only records time and computes what is owed.</div>
+        </form>
+      </section>
+
+      <section class="panel">
+        <h2>Filter</h2>
+        <div class="row">
+          <div class="field">
+            <label for="f-from">From</label>
+            <input class="w-date" type="date" id="f-from" />
+          </div>
+          <div class="field">
+            <label for="f-to">To</label>
+            <input class="w-date" type="date" id="f-to" />
+          </div>
+          <div class="filter-actions">
+            <button class="ghost" id="clear-filter">Clear filter</button>
+            <button class="ghost" id="export-btn">Export CSV</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Entries</h2>
+        <div class="table-wrap">
+          <table id="entries-table">
+            <thead>
+              <tr>
+                <th style="width:130px">Date</th>
+                <th>Task / description</th>
+                <th class="num" style="width:90px">Hours</th>
+                <th class="num" style="width:120px">Owed</th>
+                <th style="width:120px"></th>
+              </tr>
+            </thead>
+            <tbody id="entries-body"></tbody>
+            <tfoot id="entries-foot"></tfoot>
+          </table>
+        </div>
+      </section>
+
+      <p class="hint" id="footnote"></p>
+      </div><!-- /#main-content -->
+    </div>
+
+    <!-- App logic (only runs its render after the auth gate reveals the page). -->
+    <script src="config.js"></script>
+    <script src="store.js"></script>
+    <script src="app.js"></script>
+
+    <!-- SOMA Auth gate: only signed-in, allow-listed users see the ledger. -->
+    <script>
+      (function () {
+        var ALLOWED = (window.CONFIG && window.CONFIG.allowedEmails) || [];
+        function norm(e) { return String(e || "").trim().toLowerCase(); }
+        var allowSet = ALLOWED.map(norm).filter(Boolean);
+
+        function isAllowed(user) {
+          if (!user) return false;
+          if (allowSet.length === 0) return true; // empty list = any authed SOMA user
+          return allowSet.indexOf(norm(user.email)) !== -1;
+        }
+
+        SomaAuth.onAuthStateChange(function (event, session) {
+          var user = session ? session.user : null;
+          if (event === "SIGNED_OUT") {
+            window.location.replace("login.html");
+            return;
+          }
+          if (event !== "INITIAL_SESSION" && event !== "SIGNED_IN") return;
+
+          if (!user) {
+            window.location.replace(
+              "login.html?redirect=" + encodeURIComponent(window.location.pathname)
+            );
+            return;
+          }
+
+          // Reveal the page now that auth has resolved.
+          document.documentElement.style.visibility = "";
+
+          if (!isAllowed(user)) {
+            document.getElementById("gate-email").textContent = user.email || "";
+            document.getElementById("not-authorized").style.display = "flex";
+            document.getElementById("main-content").style.display = "none";
+            document.getElementById("userbar").style.display = "none";
+            return;
+          }
+
+          document.getElementById("user-email").textContent = user.email || "";
+          document.getElementById("userbar").style.display = "flex";
+          document.getElementById("not-authorized").style.display = "none";
+          document.getElementById("main-content").style.display = "block";
+        });
+
+        function doSignOut() {
+          SomaAuth.signOut().then(function () {
+            window.location.replace("login.html");
+          });
+        }
+        document.getElementById("signout-btn").addEventListener("click", doSignOut);
+        document.getElementById("gate-signout-btn").addEventListener("click", doSignOut);
+
+        SomaAuth.init(
+          window.SOMA_AUTH_CONFIG.url,
+          window.SOMA_AUTH_CONFIG.anonKey
+        );
+      })();
+    </script>
+
+    <!-- SOMA feedback chip (SOMA App Standard §8) -->
+    <script
+      src="/vendor/soma-feedback/soma-feedback.js"
+      data-site="stephanie-hours-dashboard"
+      data-area="dashboard"
+      data-no-google
+      defer
+    ></script>
+  </body>
+</html>
