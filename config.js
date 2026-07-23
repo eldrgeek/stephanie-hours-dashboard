@@ -36,6 +36,7 @@ window.CONFIG = {
   // Signed-in users not on the list see a "not authorized" panel, never the data.
   allowedEmails: [
     "mw@mike-wolf.com",
+    "eric@ekcosystem.com",  // Eric Kohner
     "team@ekcosystem.com",  // Stephanie Rincon
   ],
 };
