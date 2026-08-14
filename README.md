@@ -23,7 +23,7 @@ gated with **SOMA Auth** — only signed-in, allow-listed people reach the ledge
 - Sign-in methods: **magic link**, **Google**, **email + password** (`login.html`).
 - **Who gets in:** `config.js` → `allowedEmails`. Signed-in users NOT on the list
   see a "not authorized" panel, never the data. Currently seeded with Mike only
-  (`mw@mike-wolf.com`) because Stephanie's email isn't on file yet — **add her
+  (updated 2026-08-13: Mike, Eric, and Stephanie `team@ekcosystem.com` are all listed — **to add others
   email to that array and redeploy to grant her access** (one line). Set the
   array to `[]` to allow any authenticated SOMA user.
 - **Feedback chip** (`soma-feedback`, SOMA App Standard §8) is vendored in
